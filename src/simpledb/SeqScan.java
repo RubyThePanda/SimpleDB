@@ -7,6 +7,11 @@ import java.util.*;
  * disk).
  */
 public class SeqScan implements DbIterator {
+    private TransactionId tid;
+    private int tableId;
+    private String tableAlias;
+    private TupleDesc td;
+    private int numPages;
 
     /**
      * Creates a sequential scan over the specified table as a part of the
@@ -21,12 +26,46 @@ public class SeqScan implements DbIterator {
      *         name can be null.fieldName, tableAlias.null, or null.null).
      */
     public SeqScan(TransactionId tid, int tableid, String tableAlias) {
-        // some code goes here
+        this.tid = tid;
+        this.tableId = tableid;
+        this.tableAlias = tableAlias;
+
+        TupleDesc td = Database.getCatalog().getTupleDesc(tableId);
+        int numFields = td.numFields();
+        Type[] types = new Type[numFields];
+        String[] fieldNames = new String[numFields];
+        String prefix = (tableAlias == null) ? "null" : tableAlias;
+        for (int i = 0; i < numFields; ++i) {
+            types[i] = td.getType(i);
+            String fieldName = (td.getFieldName(i) == null) ? "null" : td.getFieldName(i);
+            fieldNames[i] = tableAlias + "." + fieldName;
+        }
+        td = new TupleDesc(types, fieldNames);
+
+        DbFile dbFile = Database.getCatalog().getDbFile(tableid);
+        if (dbFile instanceof HeapFile) {
+            HeapFile heapFile = (HeapFile)dbFile;
+            numPages = heapFile.numPages();
+        } else {
+            numPages = 0;
+        }
     }
 
+    private boolean isOpen = false;
+    private int currentPageNo = 0;
+    private Iterator<Tuple> currentTupleIterator;
+
+    private void setCurrentTupleIterator() throws DbException, TransactionAbortedException {
+        Page currentPage = Database.getBufferPool().getPage(tid, new HeapPageId(tableId, currentPageNo), Permissions.READ_ONLY);
+        if (currentPage instanceof HeapPage) {
+            HeapPage heapPage = (HeapPage)currentPage;
+            currentTupleIterator = heapPage.iterator();
+        }
+    }
     public void open()
         throws DbException, TransactionAbortedException {
-        // some code goes here
+        isOpen = true;
+        setCurrentTupleIterator();
     }
 
     /**
@@ -36,27 +75,40 @@ public class SeqScan implements DbIterator {
      * prefixed with the tableAlias string from the constructor.
      */
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return td;
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
-        // some code goes here
+        if (!isOpen || currentPageNo >= numPages) {
+            return false;
+        } else {
+            if (currentTupleIterator.hasNext()) {
+                return true;
+            } else if (currentPageNo != numPages - 1) {
+                ++currentPageNo;
+                setCurrentTupleIterator();
+                return hasNext();
+            }
+        }
         return false;
     }
 
     public Tuple next()
         throws NoSuchElementException, TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        if (!isOpen) {
+            throw new NoSuchElementException();
+        } else {
+            return currentTupleIterator.next();
+        }
     }
 
     public void close() {
-        // some code goes here
+        isOpen = false;
     }
 
     public void rewind()
         throws DbException, NoSuchElementException, TransactionAbortedException {
-        // some code goes here
+        currentPageNo = 0;
+        setCurrentTupleIterator();
     }
 }

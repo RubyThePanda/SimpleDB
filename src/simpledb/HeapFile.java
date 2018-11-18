@@ -114,12 +114,11 @@ public class HeapFile implements DbFile {
 
     private class HeapFileIterator implements DbFileIterator {
         private int pageCursor;
-//        private Page currentHeapPage;
         private Iterator<Tuple> currentTupleIterator;
         private boolean isOpen = false;
 
         private void setCurrentTupleIterator() {
-            if (0 < pageCursor || pageCursor >= numPages()) {
+            if (pageCursor < 0 || pageCursor >= numPages()) {
                 return;
             }
             Page currentPage = readPage(new HeapPageId(fileId, pageCursor));
@@ -141,6 +140,7 @@ public class HeapFile implements DbFile {
 
         public boolean hasNext() throws DbException, TransactionAbortedException {
             if (!isOpen || pageCursor < 0 || pageCursor >= numPages()) {
+                System.out.println("End");
                 return false;
             } else {
                 if (currentTupleIterator.hasNext()) {
@@ -148,7 +148,7 @@ public class HeapFile implements DbFile {
                 } else if (pageCursor != numPages() - 1){
                     ++pageCursor;
                     setCurrentTupleIterator();
-                    return currentTupleIterator.hasNext();
+                    return hasNext();
                 }
             }
             return false;
@@ -162,7 +162,8 @@ public class HeapFile implements DbFile {
         }
 
         public void rewind() throws DbException, TransactionAbortedException {
-
+            pageCursor = 0;
+            setCurrentTupleIterator();
         }
     }
 
