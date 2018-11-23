@@ -84,7 +84,7 @@ public class Tuple {
             if (i != 0) {
                 formatted = formatted.concat("\t");
             }
-            formatted += formatted.concat(getField(i).toString());
+            formatted = formatted.concat(getField(i).toString());
         }
         return formatted;
     }
