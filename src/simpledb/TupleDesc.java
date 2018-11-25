@@ -17,6 +17,9 @@ public class TupleDesc {
      * @return the new TupleDesc
      */
     public static TupleDesc combine(TupleDesc td1, TupleDesc td2) {
+        if (td1 == null || td2 == null) {
+            return null;
+        }
         int numFields1 = td1.numFields();
         int numFields2 = td2.numFields();
         int newNumFields = numFields1 + numFields2;

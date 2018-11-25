@@ -40,7 +40,7 @@ public class SeqScan implements DbIterator {
             String fieldName = (td.getFieldName(i) == null) ? "null" : td.getFieldName(i);
             fieldNames[i] = tableAlias + "." + fieldName;
         }
-        td = new TupleDesc(types, fieldNames);
+        this.td = new TupleDesc(types, fieldNames);
 
         DbFile dbFile = Database.getCatalog().getDbFile(tableid);
         if (dbFile instanceof HeapFile) {
