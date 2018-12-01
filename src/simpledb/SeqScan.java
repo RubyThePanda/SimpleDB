@@ -11,7 +11,7 @@ public class SeqScan implements DbIterator {
     private int tableId;
     private String tableAlias;
     private TupleDesc td;
-    private int numPages;
+    private DbFileIterator dbFileIterator;
 
     /**
      * Creates a sequential scan over the specified table as a part of the
@@ -43,29 +43,12 @@ public class SeqScan implements DbIterator {
         this.td = new TupleDesc(types, fieldNames);
 
         DbFile dbFile = Database.getCatalog().getDbFile(tableid);
-        if (dbFile instanceof HeapFile) {
-            HeapFile heapFile = (HeapFile)dbFile;
-            numPages = heapFile.numPages();
-        } else {
-            numPages = 0;
-        }
+        dbFileIterator = dbFile.iterator(tid);
     }
 
-    private boolean isOpen = false;
-    private int currentPageNo = 0;
-    private Iterator<Tuple> currentTupleIterator;
-
-    private void setCurrentTupleIterator() throws DbException, TransactionAbortedException {
-        Page currentPage = Database.getBufferPool().getPage(tid, new HeapPageId(tableId, currentPageNo), Permissions.READ_ONLY);
-        if (currentPage instanceof HeapPage) {
-            HeapPage heapPage = (HeapPage)currentPage;
-            currentTupleIterator = heapPage.iterator();
-        }
-    }
     public void open()
         throws DbException, TransactionAbortedException {
-        isOpen = true;
-        setCurrentTupleIterator();
+        dbFileIterator.open();
     }
 
     /**
@@ -79,36 +62,20 @@ public class SeqScan implements DbIterator {
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
-        if (!isOpen || currentPageNo >= numPages) {
-            return false;
-        } else {
-            if (currentTupleIterator.hasNext()) {
-                return true;
-            } else if (currentPageNo != numPages - 1) {
-                ++currentPageNo;
-                setCurrentTupleIterator();
-                return hasNext();
-            }
-        }
-        return false;
+        return dbFileIterator.hasNext();
     }
 
     public Tuple next()
         throws NoSuchElementException, TransactionAbortedException, DbException {
-        if (!isOpen) {
-            throw new NoSuchElementException();
-        } else {
-            return currentTupleIterator.next();
-        }
+        return dbFileIterator.next();
     }
 
     public void close() {
-        isOpen = false;
+        dbFileIterator.close();
     }
 
     public void rewind()
         throws DbException, NoSuchElementException, TransactionAbortedException {
-        currentPageNo = 0;
-        setCurrentTupleIterator();
+        dbFileIterator.rewind();
     }
 }

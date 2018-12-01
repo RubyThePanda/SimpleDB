@@ -1,0 +1,45 @@
+1) Convert data.txt into a SimpleDB table:
+java -jar dist/simpledb.jar convert data.txt 2 "int,int"
+
+2) Create a catalog file, catalog.txt, which tells SimpleDB that
+there is one table, data (stored in data.dat), with two integer fields named c1 and c2.
+
+3) Invoke a parser and run a query
+java -jar dist/simpledb.jar parser catalog.txt
+Added table : data with schema Int(c1), Int(c2)
+Computing table stats.
+Done.
+
+SimpleDB> select d.c1, d.c2 from data d;
+Started a new transaction tid = 0
+Added scan of table d
+Added select list field d.c1
+Added select list field d.c2
+d.c1    d.c2
+------------------
+1       10
+2       20
+3       30
+4       40
+5       50
+
+ 5 rows.
+----------------
+0.05 seconds
+
+
+====================================================================
+
+java -jar dist/simpledb.jar parser nsf.schema
+
+SELECT g.title FROM grants g WHERE g.title LIKE 'Monkey';
+
+SELECT g.title FROM grants g, researchers r, grant_researchers gr
+WHERE r.name = 'Samuel Madden' AND gr.researcherid = r.id AND gr.grantid = g.id;
+
+SELECT r2.name, count(g.id)
+FROM grants g, researchers r, researchers r2, grant_researchers gr, grant_researchers gr2
+WHERE r.name = 'Samuel Madden'AND gr.researcherid = r.id
+AND gr.grantid = g.id AND gr2.researcherid = r2.id AND gr.grantid = gr2.grantid
+GROUP BY r2.name
+ORDER BY r2.name;

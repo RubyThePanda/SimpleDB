@@ -17,6 +17,8 @@ public class HeapPage implements Page {
     byte header[];
     Tuple tuples[];
     int numSlots;
+    boolean isDirty;
+    TransactionId dirtyTID;
 
     byte[] oldData;
 
@@ -40,6 +42,8 @@ public class HeapPage implements Page {
         this.pid = id;
         this.td = Database.getCatalog().getTupleDesc(id.getTableId());
         this.numSlots = getNumTuples();
+        this.isDirty = false;
+        this.dirtyTID = null;
         DataInputStream dis = new DataInputStream(new ByteArrayInputStream(data));
 
         // allocate and read the header slots of this page
@@ -230,8 +234,14 @@ public class HeapPage implements Page {
      * @param t The tuple to delete
      */
     public void deleteTuple(Tuple t) throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        RecordId rid = t.getRecordId();
+        if (rid.getPageId() != pid) {
+            throw new DbException("tuple is not on this page");
+        }
+        if (getNumEmptySlots() == numSlots) {
+            throw new DbException("tuple slot is already empty");
+        }
+        setSlot(rid.tupleno(), false);
     }
 
     /**
@@ -242,8 +252,20 @@ public class HeapPage implements Page {
      * @param t The tuple to add.
      */
     public void addTuple(Tuple t) throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        if (getNumEmptySlots() == 0) {
+            throw new DbException("the page is full");
+        }
+        if (!t.getTupleDesc().equals(td)) {
+            throw new DbException("tupledesc is mismatch");
+        }
+        for (int i = 0; i < numSlots; ++i) {
+            if (!getSlot(i)) {
+                t.setRecordId(new RecordId(pid, i));
+                tuples[i] = t;
+                setSlot(i, true);
+                return;
+            }
+        }
     }
 
     /**
@@ -251,16 +273,17 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     public void markDirty(boolean dirty, TransactionId tid) {
-        // some code goes here
-	// not necessary for lab1
+        isDirty = dirty;
+        dirtyTID = tid;
     }
 
     /**
      * Returns the tid of the transaction that last dirtied this page, or null if the page is not dirty
      */
     public TransactionId isDirty() {
-        // some code goes here
-	// Not necessary for lab1
+        if (isDirty) {
+            return dirtyTID;
+        }
         return null;
     }
 

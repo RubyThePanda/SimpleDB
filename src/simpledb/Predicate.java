@@ -27,8 +27,32 @@ public class Predicate {
         public static Op getOp(int i) {
             return values()[i];
         }
+
+        public static String toString(Op op) {
+            switch (op) {
+                case EQUALS:
+                    return "=";
+                case NOT_EQUALS:
+                    return "!=";
+                case GREATER_THAN:
+                    return ">";
+                case GREATER_THAN_OR_EQ:
+                    return ">=";
+                case LESS_THAN:
+                    return "<";
+                case LESS_THAN_OR_EQ:
+                    return "<=";
+                case LIKE:
+                    return "LIKE";
+                default:
+                        return "";
+            }
+        }
     }
 
+    private int fieldId;
+    private Op op;
+    private Field operand;
     /**
      * Constructor.
      *
@@ -37,7 +61,10 @@ public class Predicate {
      * @param operand field value to compare passed in tuples to
      */
     public Predicate(int field, Op op, Field operand) {
-        // some code goes here
+        // field number --> field index?
+        this.fieldId = field;
+        this.op = op;
+        this.operand = operand;
     }
 
     /**
@@ -50,8 +77,8 @@ public class Predicate {
      * @return true if the comparison is true, false otherwise.
      */
     public boolean filter(Tuple t) {
-        // some code goes here
-        return false;
+        Field field = t.getField(fieldId);
+        return field.compare(op, operand);
     }
 
     /**
@@ -59,7 +86,6 @@ public class Predicate {
      * "f = field_id op = op_string operand = operand_string
      */
     public String toString() {
-        // some code goes here
-        return "";
+        return "field[" + String.valueOf(fieldId) + "] " + Op.toString(op) + " " + operand.toString();
     }
 }

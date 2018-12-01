@@ -2,12 +2,6 @@ package simpledb;
 import java.util.*;
 import java.io.*;
 
-// Usage:
-// 1) convert a txt file into a binary file:
-//  java -jar dist/simpledb.jar convert some_data_file.txt 3
-// 2) print the generated binary file:
-//  java -jar dist/simpledb.jar print some_data_file.dat 3
-
 public class SimpleDb {
     public static void main (String args[])
             throws DbException, TransactionAbortedException, IOException {
