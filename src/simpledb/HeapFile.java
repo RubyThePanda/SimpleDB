@@ -176,7 +176,6 @@ public class HeapFile implements DbFile {
 
         public boolean hasNext() throws DbException, TransactionAbortedException {
             if (!isOpen || pageCursor < 0 || pageCursor >= numPages()) {
-                System.out.println("End");
                 return false;
             } else {
                 if (currentTupleIterator.hasNext()) {

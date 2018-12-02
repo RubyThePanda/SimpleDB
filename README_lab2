@@ -43,3 +43,71 @@ WHERE r.name = 'Samuel Madden'AND gr.researcherid = r.id
 AND gr.grantid = g.id AND gr2.researcherid = r2.id AND gr.grantid = gr2.grantid
 GROUP BY r2.name
 ORDER BY r2.name;
+
+===================================================================
+Added table : grants with schema Int(id), String(title), Int(amount), Int(org), Int(pi), Int(manager), String(started), String(ended)
+Added table : grant_researchers with schema Int(researcherid), Int(grantid)
+Added table : researchers with schema Int(id), String(name), Int(org)
+Computing table stats.
+Done.
+SimpleDB> SELECT g.title FROM grants g WHERE g.title LIKE 'Monkey';
+Started a new transaction tid = 0
+Added scan of table g
+Added select list field g.title
+g.title
+------------
+The Nature of Dietary Differences Between Apes and Monkeys
+Disseration Research: Nuclear and Mitochondrial Phylogeny of the New World Monkeys
+The Evolution of Modularity in the Dentition of Old World Monkeys
+Doctoral Dissertation Improvement: Feeding on Phytoestrogens - Implications for Red Colobus Monkey
+
+ 4 rows.
+----------------
+0.28 seconds
+
+SimpleDB> SELECT g.title FROM grants g, researchers r, grant_researchers gr
+SimpleDB> WHERE r.name = 'Samuel Madden' AND gr.researcherid = r.id AND gr.grantid = g.id;
+Added scan of table g
+Added scan of table r
+Added scan of table gr
+Added join between gr.researcherid and r.id
+Added join between gr.grantid and g.id
+Added select list field g.title
+g.title
+------------
+CAREER: MACAQUE - Managing Ambiguity and Complexity in Acquisitional QUery Environments
+CSR-EHS: Collaborative Research: A General Efficient and Robust Platform for Enabling Control Appl
+NeTS-NOSS: WaveScope - An Adaptive Wireless Sensor Network System for High Data-Rate Applications
+III-COR - ChunkyStore: Physical Database Design for Next-Generation Databases
+CSR-CSI: XStream a Distributed Stream Processor for Heterogeneous Sensor Systems
+Collaborative Research: IDBR: VoxNet- A Deployable Bioacoustic Sensor Network
+Collaborative Research: A Comparative Study of Approaches to Cluster-Based Large Scale Data Analysi
+2009 SIGMOD Programming Contest
+
+ 8 rows.
+----------------
+220.34 seconds
+
+SimpleDB> SELECT r2.name, count(g.id)
+SimpleDB> FROM grants g, researchers r, researchers r2, grant_researchers gr, grant_researchers gr2
+SimpleDB> WHERE r.name = 'Samuel Madden'AND gr.researcherid = r.id
+SimpleDB> AND gr.grantid = g.id AND gr2.researcherid = r2.id AND gr.grantid = gr2.grantid
+SimpleDB> GROUP BY r2.name
+SimpleDB> ORDER BY r2.name;
+Added scan of table g
+Added scan of table r
+Added scan of table r2
+Added scan of table gr
+Added scan of table gr2
+Added join between gr.researcherid and r.id
+Added join between gr.grantid and g.id
+Added join between gr2.researcherid and r2.id
+Added join between gr.grantid and gr2.grantid
+GROUP BY FIELD : r2.name
+Added select list field r2.name
+Aggregate field is g.id, agg fun is : count
+Added select list field g.id
+         with aggregator count
+r2.name count(g.id)
+----------------------------
+

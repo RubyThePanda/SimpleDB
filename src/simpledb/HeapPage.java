@@ -356,8 +356,6 @@ public class HeapPage implements Page {
             if (cursor < numSlots) {
                 int current = cursor;
                 ++cursor;
-                IntField f0 = (IntField) tuples[current].getField(0);
-                IntField f1 = (IntField) tuples[current].getField(1);
                 return tuples[current];
             }
             throw new NoSuchElementException();
