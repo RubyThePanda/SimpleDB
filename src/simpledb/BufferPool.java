@@ -21,7 +21,8 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
-   // public static final int DEFAULT_PAGES = 16;
+   // public static final int DEFAULT_PAGES = 50000;
+//    public static final int DEFAULT_PAGES = 16;
 
     private int numPages;
     private Map<PageId, Page> bufferedPages;
