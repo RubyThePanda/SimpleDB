@@ -4,6 +4,9 @@ import java.io.*;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 /**
  * BufferPool manages the reading and writing of pages into memory from
  * disk. Access methods call into it to retrieve pages, and it fetches
@@ -21,11 +24,10 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
-   // public static final int DEFAULT_PAGES = 50000;
-//    public static final int DEFAULT_PAGES = 16;
 
     private int numPages;
-    private Map<PageId, Page> bufferedPages;
+    private ConcurrentMap<PageId, Page> bufferedPages;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -33,7 +35,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         this.numPages = numPages;
-        bufferedPages = new HashMap<PageId, Page>();
+        bufferedPages = new ConcurrentHashMap<PageId, Page>();
     }
 
     /**

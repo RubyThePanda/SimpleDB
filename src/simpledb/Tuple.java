@@ -65,6 +65,8 @@ public class Tuple {
     public Field getField(int i) {
         if (i >= 0 && i < getTupleDesc().numFields()) {
             return fields[i];
+        } else if (i == Aggregator.NO_GROUPING) {
+            return StarField.getInstance();
         }
         return null;
     }

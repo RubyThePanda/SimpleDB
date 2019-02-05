@@ -1,5 +1,7 @@
 package simpledb;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Knows how to compute some aggregate over a set of IntFields.
@@ -7,7 +9,8 @@ import java.util.*;
 //public class IntAggregator implements Aggregator {
 public class IntAggregator extends AbstractAggregator {
 
-    Map<Field, Integer> counts;
+    ConcurrentMap<Field, Integer> counts;
+    ConcurrentMap<Field, Integer> sum;
 
     /**
      * Aggregate constructor
@@ -29,7 +32,8 @@ public class IntAggregator extends AbstractAggregator {
         }
         results = new HashMap<Field, Double>();
         if (what == Op.AVG) {
-            counts = new HashMap<Field, Integer>();
+            counts = new ConcurrentHashMap<Field, Integer>();
+            sum = new ConcurrentHashMap<Field, Integer>();
         }
     }
 
@@ -38,7 +42,7 @@ public class IntAggregator extends AbstractAggregator {
      * @param tup the Tuple containing an aggregate field and a group-by field
      */
     public void merge(Tuple tup) {
-        Field gbField = tup.getField(gbFieldIndex); // null if gbFieldIndex == Aggregator.NO_GROUPING)
+        Field gbField = tup.getField(gbFieldIndex); // StarField if gbFieldIndex == Aggregator.NO_GROUPING)
         Field aggField = tup.getField(aggFieldIndex);
         int aggVal = 0;
         if (aggField != null && aggField.getType() == Type.INT_TYPE) {
@@ -60,15 +64,14 @@ public class IntAggregator extends AbstractAggregator {
             }
         }
 
-        // init aggCount
-        int aggCount = 0;
-        if (counts != null && counts.containsKey(gbField)) {
-            aggCount = counts.get(gbField);
-            counts.put(gbField, aggCount + 1);
-        } else if (counts != null){
-            counts.put(gbField, aggCount + 1);
+        // init auxiliary variable for AVG
+        if (counts != null && gbField != null) {
+            counts.put(gbField, counts.getOrDefault(gbField, 0) + 1);
         }
-        ++aggCount;
+
+        if (sum != null && gbField != null) {
+            sum.put(gbField, sum.getOrDefault(gbField, 0) + aggVal);
+        }
 
         // incremental calculate
         switch (aggOp) {
@@ -85,7 +88,8 @@ public class IntAggregator extends AbstractAggregator {
                 ++aggResult;
                 break;
             case AVG:
-                aggResult = aggResult + (aggVal - aggResult) / (double)aggCount;
+               // aggResult = aggResult + (aggVal - aggResult) / (double)aggCount;
+                aggResult = sum.get(gbField) / (double) counts.get(gbField);
                 break;
             default:
                 // TODO: error handling
