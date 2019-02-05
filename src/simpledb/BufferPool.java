@@ -1,8 +1,6 @@
 package simpledb;
 
 import java.io.*;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -27,6 +25,7 @@ public class BufferPool {
 
     private int numPages;
     private ConcurrentMap<PageId, Page> bufferedPages;
+    private LockTable lockTable;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -36,6 +35,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         this.numPages = numPages;
         bufferedPages = new ConcurrentHashMap<PageId, Page>();
+        lockTable = new LockTable();
     }
 
     /**
@@ -55,14 +55,19 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // TODO: lock & permission
+        try {
+            lockTable.acquireLock(pid, tid, perm);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         if (bufferedPages.containsKey(pid)) {
             return bufferedPages.get(pid);
         } else {
             int tableId = pid.getTableId();
             DbFile dbFile = Database.getCatalog().getDbFile(tableId);
             Page page = dbFile.readPage(pid);
-            if (bufferedPages.size() >= DEFAULT_PAGES) {
+            if (bufferedPages.size() >= numPages) {
                 evictPage();
             }
             bufferedPages.put(pid, page);
@@ -80,8 +85,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public  void releasePage(TransactionId tid, PageId pid) {
-        // some code goes here
-        // not necessary for lab1|lab2
+        lockTable.releaseLocks(pid, tid);
     }
 
     /**
@@ -90,15 +94,12 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public  void transactionComplete(TransactionId tid) throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
     public   boolean holdsLock(TransactionId tid, PageId p) {
-        // some code goes here
-        // not necessary for lab1|lab2
-        return false;
+        return lockTable.holdsLock(p, tid);
     }
 
     /**
@@ -108,10 +109,24 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      * @param commit a flag indicating whether we should commit or abort
      */
-    public   void transactionComplete(TransactionId tid, boolean commit)
+    public void transactionComplete(TransactionId tid, boolean commit)
         throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        if (commit) {
+            // When you commit, you should flush dirty pages associated to the transaction to disk.
+            // Done in Transaction::transactionComplete()
+        } else {
+            // When you abort, you should revert any changes made by the transaction by restoring the page to its on-disk state.
+            evictDirtyPages(tid);
+        }
+
+        // Whether the transaction commits or aborts,
+        // you should also release any state the BufferPool keeps regarding the transaction,
+        // including releasing any locks that the transaction held.
+        releaseLocks(tid);
+    }
+
+    private void releaseLocks(TransactionId tid) {
+            lockTable.releaseLocks(tid);
     }
 
     /**
@@ -187,22 +202,29 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
         Page page = bufferedPages.get(pid);
-        TransactionId dirtyTID = page.isDirty();
-        if (dirtyTID != null) {
-            DbFile dbFile = Database.getCatalog().getDbFile(page.getId().getTableId());
-            dbFile.writePage(page);
-            page.markDirty(false, dirtyTID);
-        }
+        DbFile dbFile = Database.getCatalog().getDbFile(page.getId().getTableId());
+        dbFile.writePage(page);
+        page.markDirty(false, null);
     }
 
     /** Write all pages of the specified transaction to disk.
      */
     public synchronized  void flushPages(TransactionId tid) throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2|lab3
+        for (PageId pid : bufferedPages.keySet()) {
+            TransactionId dirtyTid = bufferedPages.get(pid).isDirty();
+            if (dirtyTid != null && dirtyTid.equals(tid)) {
+                flushPage(pid);
+            }
+        }
+    }
+
+    private  synchronized void evictDirtyPages(TransactionId tid) {
+        for (PageId pid : bufferedPages.keySet()) {
+            if (bufferedPages.get(pid).isDirty() != null && bufferedPages.get(pid).isDirty().equals(tid)) {
+                bufferedPages.remove(pid);
+            }
+        }
     }
 
     /**
@@ -210,19 +232,27 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
-        // TODO: LRU
+        /*
+        Modifications from a transaction are written to disk only after it commits.
+        This means we can abort a transaction by discarding the dirty pages and rereading them from disk.
+        Thus, we must not evict dirty pages.
+        This policy is called NO STEAL.
+         */
         if (bufferedPages.isEmpty()) {
             return;
         }
-        PageId pageToBeEvicted = bufferedPages.keySet().iterator().next();
-        try {
-            flushPage(pageToBeEvicted);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        bufferedPages.remove(pageToBeEvicted);
-    }
 
+        for (PageId pageId : bufferedPages.keySet()) {
+            if (bufferedPages.get(pageId).isDirty() == null) {
+                try {
+                    flushPage(pageId);
+                    bufferedPages.remove(pageId);
+                    return;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        throw new DbException("Buffered pages may be all dirty");
+    }
 }
