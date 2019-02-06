@@ -24,4 +24,8 @@ public class TransactionId {
     public int hashCode() {
         return (int) myid;
     }
+
+    public String toString() {
+        return "t" + String.valueOf(myid);
+    }
 }

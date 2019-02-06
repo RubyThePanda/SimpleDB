@@ -330,8 +330,13 @@ public class TestUtil {
             this.elock = new Object();
         }
 
+        private void printRunInfo() {
+            System.out.println("LockGrabber: " + tid.toString() + " ask for " + perm.toString() + " lock on " + pid.toString());
+        }
+
         public void run() {
             try {
+//                printRunInfo();
                 Database.getBufferPool().getPage(tid, pid, perm);
                 synchronized(alock) {
                     acquired = true;
