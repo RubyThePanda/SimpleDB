@@ -9,7 +9,10 @@ public class Join extends AbstractDbIterator {
     DbIterator rChild;
     JoinPredicate joinPredicate;
     TupleDesc td;
-    private Tuple currentLeftTuple = null;
+    private Tuple currentRightTuple;
+    private int currentLeftCacheIndex;
+    private boolean cacheInited;
+    private ArrayList<Tuple> leftChildCache;
 
     /**
      * Constructor.  Accepts to children to join and the predicate
@@ -21,9 +24,13 @@ public class Join extends AbstractDbIterator {
      */
     public Join(JoinPredicate p, DbIterator child1, DbIterator child2) {
         joinPredicate = p;
+        cacheInited = false;
+        currentLeftCacheIndex = -1;
+        currentRightTuple = null;
         lChild = child1;
         rChild = child2;
         td = getTupleDesc();
+        leftChildCache = new ArrayList<Tuple>();
     }
 
     /**
@@ -45,7 +52,8 @@ public class Join extends AbstractDbIterator {
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        currentLeftTuple = null;
+        currentRightTuple = null;
+        currentLeftCacheIndex = -1;
         lChild.rewind();
         rChild.rewind();
     }
@@ -69,30 +77,84 @@ public class Join extends AbstractDbIterator {
      * @return The next matching tuple.
      * @see JoinPredicate#filter
      */
+//    protected Tuple readNext() throws TransactionAbortedException, DbException {
+//        // Only consider about left-deep tree
+//        // Cache left child
+//        // Nested loop join
+//        if (currentLeftCacheIndex == -1) {
+//            // no cache available
+//            if (currentLeftTuple == null && lChild.hasNext()) {
+//                currentLeftTuple = lChild.next();
+//            }
+//            while (rChild.hasNext()) {
+//                Tuple rightTuple = rChild.next();
+//                if (joinPredicate.filter(currentLeftTuple, rightTuple)) {
+//                    return constructJoinTuple(currentLeftTuple, rightTuple);
+//                }
+//            }
+//            leftChildCache.add(currentLeftTuple);
+//            while (lChild.hasNext()) {
+//                currentLeftTuple = lChild.next();
+//                rChild.rewind();
+//                return readNext();
+//            }
+//            currentLeftCacheIndex = 0;
+//        } else {
+////            System.out.println("Get from cache");
+//            // read left tuple from cache
+//            while (rChild.hasNext()) {
+//                Tuple rightTuple = rChild.next();
+//                if (joinPredicate.filter(leftChildCache.get(currentLeftCacheIndex), rightTuple)) {
+//                    return constructJoinTuple(leftChildCache.get(currentLeftCacheIndex), rightTuple);
+//                }
+//            }
+//            if (currentLeftCacheIndex < leftChildCache.size() - 1) {
+//                ++currentLeftCacheIndex;
+//            }
+//        }
+//
+//        return null;
+//    }
+
     protected Tuple readNext() throws TransactionAbortedException, DbException {
+        // Only consider about left-deep tree
         // Nested loop join
-        if (currentLeftTuple == null && lChild.hasNext()) {
-            currentLeftTuple = lChild.next();
+
+        // Cache left child
+        if (!cacheInited) {
+            while (lChild.hasNext()) {
+                leftChildCache.add(lChild.next());
+            }
+            cacheInited = true;
         }
-        while (rChild.hasNext()) {
-            Tuple rightTuple = rChild.next();
-            if (joinPredicate.filter(currentLeftTuple, rightTuple)) {
-                Tuple newTuple = new Tuple(td);
-                int i = 0;
-                for (; i < lChild.getTupleDesc().numFields(); ++i) {
-                    newTuple.setField(i, currentLeftTuple.getField(i));
-                }
-                for (int j = 0; j < rChild.getTupleDesc().numFields(); ++j) {
-                    newTuple.setField(i + j, rightTuple.getField(j));
-                }
-                return newTuple;
+
+        if (currentRightTuple == null && rChild.hasNext()) {
+            currentRightTuple = rChild.next();
+        }
+
+        while (currentLeftCacheIndex < leftChildCache.size() - 1) {
+            ++currentLeftCacheIndex;
+            if (joinPredicate.filter(leftChildCache.get(currentLeftCacheIndex), currentRightTuple)) {
+                return constructJoinTuple(leftChildCache.get(currentLeftCacheIndex), currentRightTuple);
             }
         }
-        while (lChild.hasNext()) {
-            currentLeftTuple = lChild.next();
-            rChild.rewind();
+        while(rChild.hasNext()) {
+            currentRightTuple = rChild.next();
+            currentLeftCacheIndex = -1;
             return readNext();
         }
         return null;
+    }
+
+    private Tuple constructJoinTuple(Tuple leftTuple, Tuple rightTuple) {
+        Tuple newTuple = new Tuple(td);
+        int i = 0;
+        for (; i < lChild.getTupleDesc().numFields(); ++i) {
+            newTuple.setField(i, leftTuple.getField(i));
+        }
+        for (int j = 0; j < rChild.getTupleDesc().numFields(); ++j) {
+            newTuple.setField(i + j, rightTuple.getField(j));
+        }
+        return newTuple;
     }
 }

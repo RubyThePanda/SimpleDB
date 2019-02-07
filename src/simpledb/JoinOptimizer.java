@@ -88,7 +88,11 @@ public class JoinOptimizer {
             // Insert your code here.
             // HINT:  You may need to use the variable "j" if you implemented a join
             //        algorithm that's more complicated than a basic nested-loops join.
-            return -1.0;
+            // Nested Loop Join
+            // joincost(t1 join t2) = scancost(t1) + ntups(t1) x scancost(t2) + //IO cost
+            // ntups(t1) x ntups(t2) //CPU cost
+//            return card1 + cost1 + cost2;
+            return cost1 + card1 * cost2 + card1 * card2;
         }
     }
 
@@ -111,7 +115,16 @@ public class JoinOptimizer {
             return card1;
         } else {
             // some code goes here
-            return -1;
+            if (j.p == Predicate.Op.EQUALS) {
+                if (t1pkey && !t2pkey) {
+                    return card2;
+                }
+                if (!t1pkey && t2pkey) {
+                    return card1;
+                }
+                return Math.max(card1, card2);
+            }
+            return card1 * card2 / 3;
         }
     }
 
@@ -165,12 +178,26 @@ public class JoinOptimizer {
                                               HashMap<String, Double> filterSelectivities,  
                                               boolean explain) throws ParsingException 
     {
-
-        // See the Lab 4 writeup for some hints as to how this function should work.
-
-        // some code goes here
-        //Replace the following
-        return joins;
+        PlanCache pc = new PlanCache();
+        for (int i = 1; i <= joins.size(); ++i) {
+            Set<Set<LogicalJoinNode>> subsets = enumerateSubsets(joins, i);
+            for (Set<LogicalJoinNode> subset : subsets) {
+                CostCard bestPlan = new CostCard();
+                bestPlan.cost = Double.MAX_VALUE;
+                for (LogicalJoinNode joinNode : subset) {
+                    CostCard costCard = computeCostAndCardOfSubplan(stats, filterSelectivities,joinNode, subset, bestPlan.cost, pc);
+                    if (costCard != null) {
+                        bestPlan = costCard;
+                    }
+                }
+                pc.addPlan(subset, bestPlan.cost, bestPlan.card, bestPlan.plan);
+            }
+        }
+        Vector<LogicalJoinNode> result = pc.getOrder(new HashSet<LogicalJoinNode>(joins));
+        if (explain) {
+            printJoins(result, pc, stats, filterSelectivities);
+        }
+        return result;
     } 
  
     //===================== Private Methods =================================
@@ -261,6 +288,8 @@ public class JoinOptimizer {
                 rightPkey = isPkey(j.t1,j.f1);
 
             } else {
+                // only consider left-deep tree, i.e. j.t1 is in prevBest??
+
                 //don't consider this plan if one of j.t1 or j.t2
                 //isn't a table joined in prevBest (cross product)
                 return null;
