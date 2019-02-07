@@ -5,6 +5,12 @@ import java.util.ArrayList;
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
 public class IntHistogram {
+    private int numBuckets;
+    private int minValue;
+    private int maxValue;
+    private int width;
+    private int[] histogram;
+    private int ntups;
 
     /**
      * Create a new IntHistogram.
@@ -24,6 +30,23 @@ public class IntHistogram {
      */
     public IntHistogram(int buckets, int min, int max) {
     	// some code goes here
+        numBuckets = Math.min(buckets, max - min + 1);
+        minValue = min;
+        maxValue = max;
+        width = (maxValue - minValue + 1) / numBuckets;
+        histogram = new int[numBuckets];
+        ntups = 0;
+        for (int i = 0; i < numBuckets; ++i) {
+            histogram[i] = 0;
+        }
+    }
+
+    private int getIndex(int v) {
+        int index = (v - minValue) / width;
+        if (index >= numBuckets) {
+            index = numBuckets - 1;
+        }
+        return index;
     }
 
     /**
@@ -32,6 +55,32 @@ public class IntHistogram {
      */
     public void addValue(int v) {
     	// some code goes here
+        int index = getIndex(v);
+        ++histogram[index];
+        ++ntups;
+    }
+
+    private double eqSelec(int v) {
+        if (v < minValue || v > maxValue) {
+            return 0.0;
+        }
+        return histogram[getIndex(v)] / (double)width / (double)ntups;
+    }
+
+    private double gtSelec(int v) {
+        if (v < minValue) {
+            return 1.0;
+        } else if (v > maxValue) {
+            return 0.0;
+        }
+        int index = getIndex(v);
+        int sum = 0;
+        for (int i = index + 1; i < numBuckets; ++i) {
+            sum += histogram[i];
+        }
+        int rightBoundary = minValue + index * width;
+        double bucketFrequency = histogram[index] / (double) ntups;
+        return (rightBoundary - v) / (double) width * bucketFrequency + sum / (double)ntups;
     }
 
     /**
@@ -47,7 +96,22 @@ public class IntHistogram {
     public double estimateSelectivity(Predicate.Op op, int v) {
 
     	// some code goes here
-        return -1.0;
+        switch (op) {
+            case EQUALS:
+                return eqSelec(v);
+            case NOT_EQUALS:
+                return 1 - eqSelec(v);
+            case GREATER_THAN:
+                return gtSelec(v);
+            case LESS_THAN:
+                return 1 - eqSelec(v) - gtSelec(v);
+            case LESS_THAN_OR_EQ:
+                return 1 - gtSelec(v);
+            case GREATER_THAN_OR_EQ:
+                return eqSelec(v) + gtSelec(v);
+                default:
+                    return -1.0;
+        }
     }
     
     /**

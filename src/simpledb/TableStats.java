@@ -2,7 +2,10 @@ package simpledb;
 
 /** TableStats represents statistics (e.g., histograms) about base tables in a query */
 public class TableStats {
-    
+    private ColumnStats[] stats;
+    private TupleDesc td;
+    private int ntups;
+    private int ioCostPerPage;
     /**
      * Number of bins for the histogram.
      * Feel free to increase this value over 100,
@@ -23,6 +26,73 @@ public class TableStats {
     	// You should try to do this reasonably efficiently, but you don't necessarily
     	// have to (for example) do everything in a single scan of the table.
     	// some code goes here
+        this.ioCostPerPage = ioCostPerPage;
+        ntups = 0;
+        td = Database.getCatalog().getTupleDesc(tableid);
+        initColumnStats();
+        try {
+            calculateMinMaxStats(tableid);
+            calculateHistogram(tableid);
+        } catch (DbException e) {
+            e.printStackTrace();
+        } catch (TransactionAbortedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void initColumnStats() {
+        stats = new ColumnStats[td.numFields()];
+        for (int i = 0; i < td.numFields(); ++i) {
+            if (td.getType(i) == Type.INT_TYPE) {
+                stats[i] = new IntColumnStats(NUM_HIST_BINS);
+            } else if (td.getType(i) == Type.STRING_TYPE) {
+                stats[i] = new StringColumnStats(NUM_HIST_BINS);
+            } else {
+                // TODO: error handling
+            }
+        }
+    }
+
+    private void calculateMinMaxStats(int tableid) throws DbException, TransactionAbortedException {
+        SeqScan sc = new SeqScan(new TransactionId(), tableid, "");
+        sc.open();
+        while (sc.hasNext()) {
+            Tuple tuple = sc.next();
+            for (int i = 0; i < td.numFields(); ++i) {
+                if (td.getType(i) == Type.INT_TYPE) {
+                    IntField field = (IntField)tuple.getField(i);
+                    IntColumnStats colStats = (IntColumnStats)stats[i];
+                    if (field.getValue() < colStats.min) {
+                        colStats.min = field.getValue();
+                    }
+                    if (field.getValue() > colStats.max) {
+                        colStats.max = field.getValue();
+                    }
+                }
+            }
+            ++ntups;
+        }
+        sc.close();
+    }
+
+    private void calculateHistogram(int tableid) throws DbException, TransactionAbortedException {
+        SeqScan sc = new SeqScan(new TransactionId(), tableid, "");
+        sc.open();
+        while (sc.hasNext()) {
+            Tuple tuple = sc.next();
+            for (int i = 0; i < td.numFields(); ++i) {
+                if (td.getType(i) == Type.INT_TYPE) {
+                    IntField field = (IntField)tuple.getField(i);
+                    IntColumnStats colStats = (IntColumnStats)stats[i];
+                    colStats.addValueToHistogram(field.getValue());
+                } else if (td.getType(i) == Type.STRING_TYPE) {
+                    StringField field = (StringField)tuple.getField(i);
+                    StringColumnStats colStats = (StringColumnStats)stats[i];
+                    colStats.addValueToHistogram(field.getValue());
+                }
+            }
+        }
+        sc.close();
     }
 
     /** 
@@ -40,7 +110,7 @@ public class TableStats {
      */ 
     public double estimateScanCost() {
     	// some code goes here
-        return 0;
+        return ntups * td.getSize()/ (double)BufferPool.PAGE_SIZE * ioCostPerPage;
     }
 
     /** 
@@ -52,8 +122,7 @@ public class TableStats {
      * @return The estimated cardinality of the scan with the specified selectivityFactor
      */
     public int estimateTableCardinality(double selectivityFactor) {
-    	// some code goes here
-        return 0;
+        return (int)Math.floor(ntups * selectivityFactor);
     }
 
     /** 
@@ -65,7 +134,15 @@ public class TableStats {
      * @return The estimated selectivity (fraction of tuples that satisfy) the predicate
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
-    	// some code goes here
+    	if (constant.getType() == Type.INT_TYPE) {
+    	    IntField constantField = (IntField)constant;
+    	    IntColumnStats columnStats = (IntColumnStats)stats[field];
+    	    return columnStats.estimateSelectivity(op, constantField.getValue());
+        } else if (constant.getType() == Type.STRING_TYPE) {
+    	    StringField constantField = (StringField)constant;
+    	    StringColumnStats columnStats = (StringColumnStats)stats[field];
+    	    return columnStats.estimateSelectivity(op, constantField.getValue());
+        }
         return 1.0;
     }
 
